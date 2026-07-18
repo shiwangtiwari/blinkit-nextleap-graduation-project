@@ -1,0 +1,25 @@
+{
+  "total_items": 1718,
+  "theme_counts": {
+    "delivery_experience": 501,
+    "other": 455,
+    "service_issue": 258,
+    "price_perception": 189,
+    "quality_trust": 147,
+    "assortment_gap": 53,
+    "mission_shopping": 51,
+    "app_clutter": 38,
+    "discovery_friction": 15,
+    "habit_reorder": 11
+  },
+  "discovery_related_by_theme": {
+    "mission_shopping": 1,
+    "assortment_gap": 8,
+    "other": 6,
+    "delivery_experience": 6,
+    "discovery_friction": 15,
+    "app_clutter": 2,
+    "price_perception": 1
+  },
+  "discovery_related_total": 39
+}
