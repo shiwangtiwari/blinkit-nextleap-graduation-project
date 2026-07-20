@@ -151,20 +151,19 @@ btn_disabled = "disabled" if analyzed else ""
 btn_onclick  = "" if analyzed else 'onclick="bkAnalyze()"'
 animate      = "true" if analyzed else "false"
 
-# Inject data as a plain script — NO f-string, so JSON braces never escape
-data_script = (
+# ── Render HTML — single st.markdown call, data injected via string concat ────
+# Data goes into a <script> block prepended to HTML. No f-string — no brace issues.
+DATA_SCRIPT = (
     "<script>"
     "var BK_ITEMS=" + items_json + ";"
     "var BK_QTYS=" + qtys_json + ";"
     "var BK_RECS=" + recs_json + ";"
     "var BK_ANIMATE=" + animate + ";"
+    "var BK_DELIVERY='" + delivery.replace("'", "\\'") + "';"
     "</script>"
 )
-st.markdown(data_script, unsafe_allow_html=True)
 
-# ── Render HTML (plain string, no f-string, no brace escaping issues) ─────────
-# Python variables interpolated via .replace() — safe and explicit
-HTML = """
+HTML = DATA_SCRIPT + """
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 .bk-wrap{display:flex;justify-content:center;align-items:flex-start;padding:32px 0 48px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',sans-serif;background:#E8E8E8;min-height:100vh;}
@@ -374,8 +373,7 @@ HTML = """
 var bkTipAmt=0,bkAdded={};
 function bkStars(r){var f=Math.floor(r),h=r-f>=0.3?'&#189;':'',e=5-f-(h?1:0);return'&#9733;'.repeat(f)+h+'&#9734;'.repeat(e);}
 function bkRenderCart(){
-  var del=BK_ITEMS[0]?'__DELIVERY__':'';
-  document.getElementById('bkDelTime').textContent=del||'';
+  document.getElementById('bkDelTime').textContent=BK_DELIVERY||'';
   var vis=BK_ITEMS.filter(function(i){return(BK_QTYS[i.name]||0)>0;});
   document.getElementById('bkItemCount').textContent='Shipment of '+vis.length+' item'+(vis.length!==1?'s':'');
   document.getElementById('bkCartItems').innerHTML=vis.map(function(it){
@@ -459,7 +457,6 @@ bkRenderRecs(BK_RECS,BK_ANIMATE);
 """
 
 HTML = (HTML
-    .replace("__DELIVERY__", delivery)
     .replace("__BTN_CLASS__", btn_class)
     .replace("__BTN_DISABLED__", btn_disabled)
     .replace("__BTN_ONCLICK__", btn_onclick)
