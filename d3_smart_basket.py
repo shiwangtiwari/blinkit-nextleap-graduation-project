@@ -38,22 +38,28 @@ st.markdown("""
 }
 
 /* ---- Phone bezel = the block-container itself ---- */
+/* iPhone 15 Pro: 393 x 852 CSS px screen */
 .block-container {
-    max-width: 390px !important;
+    max-width: 393px !important;
+    width: 393px !important;
+    height: 852px !important;
     background: #FFFFFF;
-    border-radius: 48px;
+    border-radius: 52px;
     border: 12px solid #111;
     box-shadow:
         0 30px 70px rgba(0,0,0,0.22),
         inset 0 0 0 2px #333,
         0 0 0 1px #000;
-    padding: 4px 22px 16px !important;
+    padding: 4px 20px 20px !important;
     margin-top: 24px !important;
     margin-bottom: 40px !important;
     position: relative;
-    min-height: 740px;
-    overflow: hidden;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
 }
+/* Hide scrollbar for real-phone feel (still scrollable) */
+.block-container::-webkit-scrollbar { width: 0; display: none; }
+.block-container { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* ---- Streamlit widget overrides to match iOS look ---- */
 /* Text area */
@@ -369,6 +375,8 @@ def _fallback(bt: str) -> dict:
 # ---------------------------------------------------------------------------
 if "basket" not in st.session_state:
     st.session_state.basket = ""
+if "ta" not in st.session_state:
+    st.session_state.ta = ""
 if "results" not in st.session_state:
     st.session_state.results = None
 if "phase" not in st.session_state:
@@ -453,6 +461,7 @@ elif st.session_state.phase == "results" and st.session_state.results:
     # Reset button
     if st.button("← Try another basket", use_container_width=True):
         st.session_state.basket = ""
+        st.session_state.ta = ""
         st.session_state.results = None
         st.session_state.phase = "input"
         st.rerun()
@@ -476,6 +485,7 @@ else:
         if i < len(labels):
             with col:
                 if st.button(labels[i], key=f"p{i}", use_container_width=True):
+                    st.session_state.ta = PRESETS[labels[i]]
                     st.session_state.basket = PRESETS[labels[i]]
                     st.rerun()
     row2 = st.columns(3)
@@ -484,20 +494,19 @@ else:
         if idx < len(labels):
             with col:
                 if st.button(labels[idx], key=f"p{idx}", use_container_width=True):
+                    st.session_state.ta = PRESETS[labels[idx]]
                     st.session_state.basket = PRESETS[labels[idx]]
                     st.rerun()
 
-    # Text area
+    # Text area - use ONLY key (no value= param) so widget state stays in sync
     typed = st.text_area(
         "basket",
-        value=st.session_state.basket,
         placeholder="e.g. Amul milk 1L, brown bread, bananas, Maggi, Tata Salt, curd 400g",
         height=72,
         key="ta",
         label_visibility="collapsed",
     )
-    if typed != st.session_state.basket:
-        st.session_state.basket = typed
+    st.session_state.basket = typed
 
     # Analyze button
     if st.button(
