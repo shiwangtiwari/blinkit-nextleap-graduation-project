@@ -118,10 +118,20 @@ Respond ONLY with a valid JSON array, no markdown, no extra text:
 # ── Session state ──────────────────────────────────────────────────────────────
 if "basket" not in st.session_state:
     st.session_state.basket = random.choice(BASKETS)
+
+if "qtys" not in st.session_state:
     st.session_state.qtys = {i["name"]: i["qty"] for i in st.session_state.basket["items"]}
+
+if "analyzed" not in st.session_state:
     st.session_state.analyzed = False
+
+if "ai_recs" not in st.session_state:
     st.session_state.ai_recs = None
+
+if "tip" not in st.session_state:
     st.session_state.tip = 0
+
+if "added_recs" not in st.session_state:
     st.session_state.added_recs = set()
 
 basket = st.session_state.basket
