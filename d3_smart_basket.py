@@ -251,18 +251,43 @@ button[data-testid="stBaseButton-secondary"]:hover {
 # ---------------------------------------------------------------------------
 def get_suggestions(basket_text: str) -> dict:
     prompt = (
-        "You are Blinkit's Smart Basket engine. A user's typical basket is:\n"
-        f"{basket_text}\n\n"
-        "Analyze which product CATEGORIES they already buy from. Then suggest exactly 3 products "
-        "from DIFFERENT categories they are NOT buying from. Each suggestion must:\n"
-        "- Be a real product available on Blinkit (Indian quick-commerce)\n"
-        "- Come from a category absent from their basket\n"
-        "- Include a contextual reason tied to their basket items\n"
-        "- Include realistic social proof data\n\n"
+        "You are Blinkit's Smart Basket engine. The company's strategic goal is:\n"
+        "INCREASE the percentage of users who purchase from at least one NEW CATEGORY every month.\n\n"
+        "Blinkit has these TOP-LEVEL categories (treat as distinct groups):\n"
+        "1. Dairy, Bread & Eggs\n"
+        "2. Fruits & Vegetables\n"
+        "3. Snacks & Munchies\n"
+        "4. Cold Drinks & Juices\n"
+        "5. Instant & Frozen Food\n"
+        "6. Sweet Tooth (chocolates, cakes, ice cream, desserts)\n"
+        "7. Atta, Rice, Dal & Dry Fruits\n"
+        "8. Masala, Oil & More\n"
+        "9. Cleaning Essentials\n"
+        "10. Personal Care (skincare, haircare, grooming, oral care)\n"
+        "11. Baby Care\n"
+        "12. Pet Care\n"
+        "13. Pharmacy & Wellness\n"
+        "14. Home & Office\n"
+        "15. Electronics & Accessories\n"
+        "16. Meat, Fish & Eggs\n"
+        "17. Paan Corner & Fragrances\n"
+        "18. Print Store & Stationery\n\n"
+        f"A user's typical basket is:\n{basket_text}\n\n"
+        "STEP 1: Map every basket item to its top-level category number from the list above.\n"
+        "STEP 2: Identify which top-level categories are ABSENT from the basket.\n"
+        "STEP 3: Suggest exactly 3 products, each from a DIFFERENT absent top-level category.\n\n"
+        "CRITICAL RULES:\n"
+        "- Each suggestion MUST come from a genuinely different top-level category that the user "
+        "has NEVER bought from. Do NOT suggest items from the same or adjacent food categories.\n"
+        "- Example: if basket has cake, milk, chocolate -> those are Sweet Tooth + Dairy. "
+        "Do NOT suggest cookies, sprinkles, or biscuits (still Sweet Tooth/Snacks). "
+        "Instead suggest from Cleaning, Personal Care, Pharmacy, Home & Office, etc.\n"
+        "- The reason should bridge the basket context to the new category naturally.\n"
+        "- Include realistic social proof.\n\n"
         "Respond ONLY with this JSON (no markdown, no backticks, no extra text):\n"
-        '{"basket_categories":["cat1","cat2"],"suggestions":['
-        '{"product_name":"Brand Product Size","price":"99","category":"Cat",'
-        '"reason":"One line","social_proof":"Stat"},'
+        '{"basket_categories":["Dairy, Bread & Eggs","Sweet Tooth"],"suggestions":['
+        '{"product_name":"Brand Product Size","price":"99","category":"Cleaning Essentials",'
+        '"reason":"One line bridging basket to this new category","social_proof":"Stat"},'
         '{"product_name":"...","price":"...","category":"...","reason":"...","social_proof":"..."},'
         '{"product_name":"...","price":"...","category":"...","reason":"...","social_proof":"..."}'
         "]}"
@@ -288,78 +313,115 @@ def get_suggestions(basket_text: str) -> dict:
 def _fallback(bt: str) -> dict:
     bl = bt.lower()
     if any(w in bl for w in ["milk", "bread", "egg", "nescafe", "banana"]):
+        # Basket = Dairy + Bakery + Fruits + Instant Food
         return {
-            "basket_categories": ["Dairy", "Bakery", "Breakfast", "Fruits"],
+            "basket_categories": ["Dairy, Bread & Eggs", "Fruits & Vegetables", "Instant & Frozen Food"],
             "suggestions": [
-                {"product_name": "Saffola Oats 1kg", "price": "169", "category": "Health Foods",
-                 "reason": "Pairs with your morning milk and banana for a complete breakfast",
-                 "social_proof": "68% of breakfast-basket shoppers add oats within 2 weeks"},
-                {"product_name": "Vim Dishwash Gel 500ml", "price": "99", "category": "Cleaning",
-                 "reason": "Daily cooking means daily dishes; most milk+bread buyers restock cleaning monthly",
+                {"product_name": "Dettol Handwash Original 200ml", "price": "55", "category": "Personal Care",
+                 "reason": "Breakfast prep means hands in food every morning; handwash sits right at the kitchen sink",
+                 "social_proof": "74% of daily-dairy buyers also restock personal care monthly"},
+                {"product_name": "Vim Dishwash Gel 500ml", "price": "99", "category": "Cleaning Essentials",
+                 "reason": "Daily milk and eggs means daily dishes; cleaning restocks align with your grocery cycle",
                  "social_proof": "Added by 4 out of 5 similar households this week"},
-                {"product_name": "Yogabar Muesli 400g", "price": "249", "category": "Snacks & Cereals",
-                 "reason": "Goes with the milk you already order; a no-cook breakfast for rushed mornings",
-                 "social_proof": "Trending in your area: 3x orders this month vs last"},
+                {"product_name": "Crocin Advance 10 tablets", "price": "25", "category": "Pharmacy & Wellness",
+                 "reason": "A medicine-cabinet staple you can add while you are already ordering essentials",
+                 "social_proof": "62% of weekly grocery shoppers batch their pharmacy refills too"},
             ],
         }
     elif any(w in bl for w in ["paneer", "butter", "pav", "onion"]):
+        # Basket = Dairy + Bakery + Vegetables
         return {
-            "basket_categories": ["Dairy", "Bakery", "Vegetables"],
+            "basket_categories": ["Dairy, Bread & Eggs", "Fruits & Vegetables"],
             "suggestions": [
-                {"product_name": "MDH Pav Bhaji Masala 100g", "price": "56", "category": "Spices",
-                 "reason": "You have pav, butter, and onions; this completes a classic pav bhaji",
-                 "social_proof": "91% of pav-buyers also order this masala"},
-                {"product_name": "Paper Boat Aamras 200ml (3-pack)", "price": "60", "category": "Beverages",
-                 "reason": "A cold side drink for your weekend brunch spread",
-                 "social_proof": "Weekend beverage orders up 45% in your pincode"},
-                {"product_name": "Amul Lassi Mango 200ml (4-pack)", "price": "80", "category": "Dairy Beverages",
-                 "reason": "Complements a heavy paneer meal; ready-to-drink, no prep",
-                 "social_proof": "Bought together with paneer in 58% of weekend baskets"},
+                {"product_name": "Scotch-Brite Scrub Pad (3-pack)", "price": "49", "category": "Cleaning Essentials",
+                 "reason": "Heavy cooking like pav bhaji leaves greasy pans; scrub pads are the first thing to run out",
+                 "social_proof": "83% of weekend-cooking baskets include a cleaning add-on"},
+                {"product_name": "Nivea Soft Cream 100ml", "price": "149", "category": "Personal Care",
+                 "reason": "Kitchen heat dries skin out; a moisturizer is an easy personal care add while ordering",
+                 "social_proof": "Personal care adoption up 38% among users who started with grocery"},
+                {"product_name": "Classmate Notebook 180 pages", "price": "60", "category": "Print Store & Stationery",
+                 "reason": "If you have school-age kids at home eating pav bhaji, they probably need notebooks too",
+                 "social_proof": "Stationery is the fastest-growing cross-category add for family households"},
             ],
         }
     elif any(w in bl for w in ["diaper", "huggies", "cerelac", "baby", "dettol"]):
+        # Basket = Baby Care + Cleaning
         return {
-            "basket_categories": ["Baby Care", "Cleaning", "Hygiene"],
+            "basket_categories": ["Baby Care", "Cleaning Essentials"],
             "suggestions": [
-                {"product_name": "Himalaya Baby Lotion 200ml", "price": "145", "category": "Baby Skin Care",
-                 "reason": "Most diaper buyers also need baby skin care in the same restock cycle",
-                 "social_proof": "72% of Huggies buyers add a baby lotion to their cart"},
-                {"product_name": "Good Knight Gold Flash Refill", "price": "89", "category": "Home Protection",
+                {"product_name": "Good Knight Gold Flash Refill", "price": "89", "category": "Home & Office",
                  "reason": "Baby in the house means extra mosquito protection matters",
-                 "social_proof": "Top-selling home care add-on for baby households"},
-                {"product_name": "Real Fruit Power Mixed Fruit 1L", "price": "99", "category": "Beverages",
-                 "reason": "A quick drink for you while managing baby routines",
-                 "social_proof": "Added by 3 in 5 parents during their baby-care restock"},
+                 "social_proof": "Top-selling home add-on for baby-care households"},
+                {"product_name": "Pedigree Puppy Food 400g", "price": "99", "category": "Pet Care",
+                 "reason": "Families with babies often also have pets; batch your care-routine orders",
+                 "social_proof": "Pet care adoption is 2.3x higher in households that already buy baby care"},
+                {"product_name": "Colgate MaxFresh Toothpaste 150g", "price": "95", "category": "Personal Care",
+                 "reason": "Running low on toothpaste? Add personal care while your baby-care order ships",
+                 "social_proof": "58% of baby-care buyers add a personal care item within their first month"},
             ],
         }
     elif any(w in bl for w in ["oats", "dry fruit", "honey", "green tea", "skim"]):
+        # Basket = Health Foods + Dry Fruits + Dairy + Beverages
         return {
-            "basket_categories": ["Health Foods", "Dry Fruits", "Dairy", "Beverages"],
+            "basket_categories": ["Atta, Rice, Dal & Dry Fruits", "Dairy, Bread & Eggs", "Cold Drinks & Juices"],
             "suggestions": [
-                {"product_name": "Peanut Butter Crunchy 400g (MyFitness)", "price": "269", "category": "Spreads",
-                 "reason": "High protein spread that pairs with your oats and health-first basket",
-                 "social_proof": "65% of oats buyers add a protein spread within 3 orders"},
-                {"product_name": "Epigamia Greek Yogurt Strawberry 90g", "price": "45", "category": "Dairy Snacks",
-                 "reason": "Protein-rich snack that fits your health-conscious pattern",
-                 "social_proof": "Trending: health basket shoppers order 2x more yogurt"},
-                {"product_name": "Chia Seeds 200g (True Elements)", "price": "159", "category": "Superfoods",
-                 "reason": "Add to your oats or smoothie; complements your dry fruits",
-                 "social_proof": "Bought together with oats in 48% of health baskets"},
+                {"product_name": "Himalaya Purifying Neem Face Wash 150ml", "price": "130", "category": "Personal Care",
+                 "reason": "Health-conscious inside and out; face wash is the top personal care add for health-food buyers",
+                 "social_proof": "65% of health-food buyers add a personal care product within 3 orders"},
+                {"product_name": "Odonil Air Freshener 75g (2-pack)", "price": "99", "category": "Home & Office",
+                 "reason": "You care about what goes into your body; makes sense to care about your living space too",
+                 "social_proof": "Home freshener adoption up 42% among wellness-focused shoppers"},
+                {"product_name": "Whiskas Cat Food Tuna 85g (3-pack)", "price": "105", "category": "Pet Care",
+                 "reason": "Health-first shoppers are 2x more likely to also care for pets; batch your care orders",
+                 "social_proof": "Pet care is the top new-category entry for health-conscious users"},
+            ],
+        }
+    elif any(w in bl for w in ["cake", "chocolate", "milkshake", "cookie", "ice cream", "sweet"]):
+        # Basket = Sweet Tooth + possibly Dairy
+        return {
+            "basket_categories": ["Sweet Tooth", "Dairy, Bread & Eggs"],
+            "suggestions": [
+                {"product_name": "Closeup Toothpaste Menthol Fresh 150g", "price": "89", "category": "Personal Care",
+                 "reason": "All that cake and chocolate calls for a fresh mouth after; oral care is a natural add",
+                 "social_proof": "71% of sweet-tooth buyers also purchase oral care monthly"},
+                {"product_name": "Harpic Powerplus 500ml", "price": "79", "category": "Cleaning Essentials",
+                 "reason": "You are already ordering home delivery; add household cleaning to skip a separate trip",
+                 "social_proof": "Cleaning products are the #1 cross-category add for dessert buyers"},
+                {"product_name": "Moov Pain Relief Spray 50g", "price": "130", "category": "Pharmacy & Wellness",
+                 "reason": "A medicine-cabinet essential you can add while your dessert order is on the way",
+                 "social_proof": "48% of users add pharmacy items once they realize Blinkit stocks them"},
+            ],
+        }
+    elif any(w in bl for w in ["maggi", "cola", "lay", "chips", "pepsi", "coke", "biscuit"]):
+        # Basket = Snacks + Beverages + Instant Food
+        return {
+            "basket_categories": ["Snacks & Munchies", "Cold Drinks & Juices", "Instant & Frozen Food"],
+            "suggestions": [
+                {"product_name": "Set Wet Hair Gel 100ml", "price": "99", "category": "Personal Care",
+                 "reason": "Movie night sorted, but grooming is another routine you can batch on Blinkit",
+                 "social_proof": "Personal care is the #1 new category snack-buyers expand into"},
+                {"product_name": "Lizol Floor Cleaner Citrus 500ml", "price": "89", "category": "Cleaning Essentials",
+                 "reason": "Snack crumbs and cola spills mean the floor needs attention; add cleaning to the same order",
+                 "social_proof": "67% of snack-heavy baskets add a cleaning item within 2 orders"},
+                {"product_name": "Duracell AA Batteries (4-pack)", "price": "130", "category": "Electronics & Accessories",
+                 "reason": "Batteries for your remote, torch, or gaming controller; never run out mid-movie-night",
+                 "social_proof": "Electronics is the fastest-growing add-on category for young-adult baskets"},
             ],
         }
     else:
+        # Generic basket
         return {
             "basket_categories": ["Grocery", "Staples"],
             "suggestions": [
-                {"product_name": "Tata Sampann Chana Dal 1kg", "price": "135", "category": "Pulses",
-                 "reason": "A pantry staple that pairs with your existing grocery items",
-                 "social_proof": "72% of similar baskets include a dal or lentil"},
-                {"product_name": "Surf Excel Matic Liquid 1L", "price": "225", "category": "Household Care",
-                 "reason": "Most grocery shoppers batch household refills on the same order",
-                 "social_proof": "Saves an extra delivery; added by 3 in 5 weekly shoppers"},
-                {"product_name": "Cadbury Dairy Milk Silk 150g", "price": "160", "category": "Chocolates",
-                 "reason": "A treat to go with your essentials run; top impulse add at checkout",
-                 "social_proof": "Top impulse add in your area this week"},
+                {"product_name": "Surf Excel Matic Liquid 1L", "price": "225", "category": "Cleaning Essentials",
+                 "reason": "Most grocery shoppers batch household refills on the same order to save a delivery",
+                 "social_proof": "Cleaning is the #1 new category grocery-only users expand into"},
+                {"product_name": "Garnier Men Face Wash 100ml", "price": "115", "category": "Personal Care",
+                 "reason": "Personal care is a daily essential just like your groceries; skip the separate trip",
+                 "social_proof": "39% of grocery-first users add personal care within their first month"},
+                {"product_name": "Vicks Inhaler", "price": "35", "category": "Pharmacy & Wellness",
+                 "reason": "A medicine-cabinet staple you probably need; add it while ordering anyway",
+                 "social_proof": "Pharmacy adoption jumps 4x once users realize Blinkit delivers it in 10 min"},
             ],
         }
 
