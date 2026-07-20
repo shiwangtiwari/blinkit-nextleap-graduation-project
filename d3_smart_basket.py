@@ -130,19 +130,33 @@ button[data-testid="stBaseButton-secondary"]:hover {
 /* Column padding reduction */
 [data-testid="stColumn"] { padding: 0 2px !important; }
 
-/* ---- Custom HTML elements ---- */
+/* ---- iPhone 15 Pro status bar + Dynamic Island ---- */
+.iphone-top {
+    position: relative;
+    height: 54px;
+    margin: 2px 0 0;
+}
 .dynamic-island {
-    width: 120px; height: 34px;
+    width: 126px; height: 36px;
     background: #111; border-radius: 20px;
-    margin: 6px auto 0;
+    position: absolute;
+    top: 4px; left: 50%; transform: translateX(-50%);
+    z-index: 2;
 }
-.status-bar {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 6px 12px 2px;
-    font: 600 14px -apple-system, BlinkMacSystemFont, sans-serif;
+.status-time {
+    position: absolute;
+    top: 12px; left: 16px;
+    font: 600 15px/1 -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
     color: #1a1a1a;
+    z-index: 1;
+    letter-spacing: 0.2px;
 }
-.status-icons { display:flex; gap:5px; align-items:center; font-size:13px; }
+.status-icons {
+    position: absolute;
+    top: 10px; right: 14px;
+    display: flex; gap: 6px; align-items: center;
+    z-index: 1;
+}
 
 .smart-banner {
     background: #FFC727; border-radius: 14px;
@@ -277,7 +291,7 @@ Respond ONLY with this JSON (no markdown, no backticks, no extra text):
         import anthropic
         client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
         resp = client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-haiku-4-5",
             max_tokens=800,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -380,46 +394,45 @@ if "ta" not in st.session_state:
 if "results" not in st.session_state:
     st.session_state.results = None
 if "phase" not in st.session_state:
-    st.session_state.phase = "input"  # input | loading | results
+    st.session_state.phase = "input"  # input | results
 
 
 # ---------------------------------------------------------------------------
 # PHONE CONTENT
 # ---------------------------------------------------------------------------
 
-# Dynamic Island + Status Bar (always shown)
+# iPhone status bar + Dynamic Island (always shown)
 st.markdown("""
-<div class="dynamic-island"></div>
-<div class="status-bar">
-    <span>9:41</span>
-    <span class="status-icons">
-        <span>●●●●</span>
-        <span style="color:#0C831F;">▐</span>
-    </span>
+<div class="iphone-top">
+    <span class="status-time">9:41</span>
+    <div class="dynamic-island"></div>
+    <div class="status-icons">
+        <!-- Signal bars -->
+        <svg width="17" height="12" viewBox="0 0 17 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="0" y="9" width="3" height="3" rx="0.5" fill="#1a1a1a"/>
+            <rect x="4.5" y="6" width="3" height="6" rx="0.5" fill="#1a1a1a"/>
+            <rect x="9" y="3" width="3" height="9" rx="0.5" fill="#1a1a1a"/>
+            <rect x="13.5" y="0" width="3" height="12" rx="0.5" fill="#1a1a1a"/>
+        </svg>
+        <!-- WiFi -->
+        <svg width="16" height="12" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M8 10.5a1.2 1.2 0 110 2.4 1.2 1.2 0 010-2.4z" fill="#1a1a1a" transform="translate(0,-1.5)"/>
+            <path d="M4.7 9.3a4.7 4.7 0 016.6 0" stroke="#1a1a1a" stroke-width="1.4" stroke-linecap="round" fill="none" transform="translate(0,-1.5)"/>
+            <path d="M2 6.5a8.5 8.5 0 0112 0" stroke="#1a1a1a" stroke-width="1.4" stroke-linecap="round" fill="none" transform="translate(0,-1.5)"/>
+            <path d="M-.2 3.8a12 12 0 0116.4 0" stroke="#1a1a1a" stroke-width="1.4" stroke-linecap="round" fill="none" transform="translate(0,-1.5)"/>
+        </svg>
+        <!-- Battery -->
+        <svg width="27" height="13" viewBox="0 0 27 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="0.5" y="0.5" width="22" height="12" rx="2.5" stroke="#1a1a1a" stroke-opacity="0.35"/>
+            <rect x="2" y="2" width="17" height="9" rx="1.5" fill="#0C831F"/>
+            <path d="M24 4.5v4a2 2 0 000-4z" fill="#1a1a1a" fill-opacity="0.4"/>
+        </svg>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
-# ---------- LOADING PHASE ----------
-if st.session_state.phase == "loading":
-    st.markdown("""
-    <div class="smart-banner">
-        <div class="dtag">DELIVERY IN 8 MINUTES</div>
-        <h2>Smart Basket</h2>
-        <div class="sub">Analyzing your basket...</div>
-    </div>
-    <div class="ld-wrap">
-        <div class="ld-spin"></div>
-        <p>Finding products from categories you haven't tried</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    data = get_suggestions(st.session_state.basket)
-    st.session_state.results = data
-    st.session_state.phase = "results"
-    st.rerun()
-
 # ---------- RESULTS PHASE ----------
-elif st.session_state.phase == "results" and st.session_state.results:
+if st.session_state.phase == "results" and st.session_state.results:
     data = st.session_state.results
     items = [i.strip() for i in st.session_state.basket.split(",") if i.strip()]
     chips = "".join(f'<span class="bchip">{it}</span>' for it in items)
@@ -427,36 +440,34 @@ elif st.session_state.phase == "results" and st.session_state.results:
 
     cards = ""
     for s in data.get("suggestions", []):
-        cards += f"""
-        <div class="pcard">
-            <div class="pname">{s['product_name']}</div>
-            <div class="pprice">₹{s['price']}</div>
-            <span class="addbtn">+ ADD</span>
-            <div class="preason">{s['reason']}</div>
-            <div class="psocial">📊 {s['social_proof']}</div>
-        </div>"""
+        cards += (
+            '<div class="pcard">'
+            f'<div class="pname">{s["product_name"]}</div>'
+            f'<div class="pprice">₹{s["price"]}</div>'
+            '<span class="addbtn">+ ADD</span>'
+            f'<div class="preason">{s["reason"]}</div>'
+            f'<div class="psocial">📊 {s["social_proof"]}</div>'
+            '</div>'
+        )
 
-    st.markdown(f"""
-    <div class="smart-banner">
-        <div class="dtag">DELIVERY IN 8 MINUTES</div>
-        <h2>Smart Basket</h2>
-        <div class="sub">Here's what we found for you</div>
-    </div>
-
-    <div class="sec-label">Your basket</div>
-    <div class="basket-chips">{chips}</div>
-
-    <div class="sug-title">You might also need</div>
-    <div class="sug-sub">Based on your {cats} basket · Pick any to add</div>
-
-    {cards}
-
-    <div class="mnote">
-        Built on Blinkit review analysis (1,718 reviews, 10 themes). Discovery friction
-        is just 2.3% of complaints because users never attempt it. Smart Basket meets them
-        at checkout, the highest-intent moment, with contextual cross-category nudges.
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        '<div class="smart-banner">'
+        '<div class="dtag">DELIVERY IN 8 MINUTES</div>'
+        '<h2>Smart Basket</h2>'
+        '<div class="sub">Here\'s what we found for you</div>'
+        '</div>'
+        '<div class="sec-label">Your basket</div>'
+        f'<div class="basket-chips">{chips}</div>'
+        '<div class="sug-title">You might also need</div>'
+        f'<div class="sug-sub">Based on your {cats} basket · Pick any to add</div>'
+        f'{cards}'
+        '<div class="mnote">'
+        'Built on Blinkit review analysis (1,718 reviews, 10 themes). Discovery friction '
+        'is just 2.3% of complaints because users never attempt it. Smart Basket meets them '
+        'at checkout, the highest-intent moment, with contextual cross-category nudges.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
     # Reset button
     if st.button("← Try another basket", use_container_width=True):
@@ -468,15 +479,16 @@ elif st.session_state.phase == "results" and st.session_state.results:
 
 # ---------- INPUT PHASE ----------
 else:
-    st.markdown("""
-    <div class="smart-banner">
-        <div class="dtag">DELIVERY IN 8 MINUTES</div>
-        <h2>Smart Basket</h2>
-        <div class="sub">One new find, matched to how you already shop</div>
-    </div>
-    <div class="sec-label">Your usual basket</div>
-    <div class="hint-label">Tap a preset or type your own</div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        '<div class="smart-banner">'
+        '<div class="dtag">DELIVERY IN 8 MINUTES</div>'
+        '<h2>Smart Basket</h2>'
+        '<div class="sub">One new find, matched to how you already shop</div>'
+        '</div>'
+        '<div class="sec-label">Your usual basket</div>'
+        '<div class="hint-label">Tap a preset or type your own</div>',
+        unsafe_allow_html=True,
+    )
 
     # Preset chips as Streamlit buttons (2 rows)
     labels = list(PRESETS.keys())
@@ -508,14 +520,17 @@ else:
     )
     st.session_state.basket = typed
 
-    # Analyze button
+    # Analyze button - calls API inline, no separate loading phase
     if st.button(
         "Analyze my basket →",
         type="primary",
         use_container_width=True,
         disabled=not st.session_state.basket.strip(),
     ):
-        st.session_state.phase = "loading"
+        with st.spinner("Finding suggestions..."):
+            data = get_suggestions(st.session_state.basket)
+        st.session_state.results = data
+        st.session_state.phase = "results"
         st.rerun()
 
 
