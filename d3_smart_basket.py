@@ -1,300 +1,521 @@
 """
-Blinkit Smart Basket - AI-native MVP (D3)
-Basket-aware cross-category discovery nudge, rendered inside an iPhone mockup.
+Blinkit Smart Basket - D3 MVP
+Basket-aware cross-category discovery nudge inside a full iPhone mockup.
 
 Deploy on Streamlit Community Cloud:
-  1. Push this file to the repo root of shiwangtiwari/blinkit-nextleap-graduation-project
-  2. New app on share.streamlit.io, main file path: d3_smart_basket.py, branch: main
-  3. Advanced Settings > Secrets:  ANTHROPIC_API_KEY = "sk-ant-your-key"
-  4. requirements.txt at repo root must include: streamlit and anthropic
+  1. Push to repo root of shiwangtiwari/blinkit-nextleap-graduation-project
+  2. New app on share.streamlit.io  ->  main file: d3_smart_basket.py, branch: main
+  3. Add ANTHROPIC_API_KEY in Advanced Settings > Secrets
 """
-
-import json
-import re
 
 import streamlit as st
+import json
 
-st.set_page_config(
-    page_title="Smart Basket | Blinkit",
-    page_icon="\U0001F6D2",
-    layout="centered",
-    initial_sidebar_state="collapsed",
-)
+st.set_page_config(page_title="Smart Basket | Blinkit", page_icon="🛒", layout="centered")
 
-# ---------------------------------------------------------------- CSS
-
-PHONE_CSS = """
-<style>
-    /* strip streamlit chrome */
-    #MainMenu, header, footer, .stDeployButton,
-    [data-testid="stToolbar"],
-    [data-testid="stDecoration"],
-    [data-testid="stStatusWidget"] { display: none !important; }
-
-    .stApp {
-        background: linear-gradient(160deg, #FFF5E6 0%, #FFE8CC 30%, #FFDAB3 60%, #FFD0A0 100%) !important;
-    }
-
-    .block-container {
-        max-width: 430px !important;
-        margin: 0 auto !important;
-        padding: 1.2rem 12px 2rem !important;
-    }
-
-    @keyframes fadeDown {
-        from { opacity: 0; transform: translateY(-14px); }
-        to   { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes phoneFloat {
-        from { opacity: 0; transform: translateY(26px) scale(0.97); }
-        to   { opacity: 1; transform: translateY(0) scale(1); }
-    }
-    @keyframes slideUp {
-        from { opacity: 0; transform: translateY(22px); }
-        to   { opacity: 1; transform: translateY(0); }
-    }
-
-    /* brand header above the phone */
-    .brand-header { text-align: center; padding: 4px 0 14px; animation: fadeDown 0.6s ease-out; }
-    .brand-logo {
-        display: inline-block; background: #FFC727; color: #1A1A2E;
-        font-family: Arial, sans-serif; font-weight: 900; font-size: 26px;
-        padding: 7px 24px; border-radius: 10px; letter-spacing: -0.5px;
-    }
-    .brand-tagline {
-        color: #7A6A5A; font-family: 'Segoe UI', system-ui, sans-serif;
-        font-size: 13px; margin-top: 7px;
-    }
-
-    /* iPhone bezel */
-    .iphone-frame {
-        background: #000; border-radius: 50px; padding: 11px;
-        box-shadow: 0 22px 55px rgba(0,0,0,0.20), 0 6px 16px rgba(0,0,0,0.10),
-                    inset 0 0 0 1.5px #444;
-        animation: phoneFloat 0.7s ease-out;
-    }
-    .iphone-screen {
-        background: #FFFFFF; border-radius: 40px; overflow: hidden;
-        padding: 10px 0 6px;
-    }
-    .dynamic-island {
-        width: 112px; height: 30px; background: #000;
-        border-radius: 18px; margin: 2px auto 0;
-    }
-    .status-bar {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 0 26px; margin-top: -30px; height: 30px;
-        font-family: -apple-system, 'Segoe UI', sans-serif;
-        font-size: 13px; font-weight: 600; color: #1A1A2E;
-    }
-    .app-body { padding: 14px 18px 10px; font-family: 'Segoe UI', system-ui, sans-serif; }
-
-    /* in-app blinkit top bar */
-    .app-topbar {
-        background: #FFC727; border-radius: 14px; padding: 12px 14px; margin-bottom: 14px;
-    }
-    .app-topbar .t1 { font-size: 11px; font-weight: 700; color: #1A1A2E; letter-spacing: 0.4px; }
-    .app-topbar .t2 { font-size: 17px; font-weight: 900; color: #1A1A2E; }
-    .app-topbar .t3 { font-size: 11px; color: #4A4A3A; margin-top: 1px; }
-
-    .section-label {
-        font-size: 12px; font-weight: 700; color: #666;
-        letter-spacing: 0.6px; text-transform: uppercase; margin: 4px 0 6px;
-    }
-
-    /* basket chips */
-    .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-    .chip {
-        background: #F2F7F2; border: 1px solid #D7E8D7; color: #1A1A2E;
-        border-radius: 16px; padding: 4px 11px; font-size: 12.5px;
-        animation: slideUp 0.4s ease-out;
-    }
-
-    /* result card */
-    .nudge-card {
-        background: linear-gradient(150deg, #F3FBF3 0%, #E8F6E8 100%);
-        border: 1.5px solid #0C831F; border-radius: 18px;
-        padding: 16px; margin-top: 14px;
-        animation: slideUp 0.55s ease-out;
-    }
-    .nudge-eyebrow {
-        display: inline-block; background: #0C831F; color: #fff;
-        font-size: 10.5px; font-weight: 700; letter-spacing: 0.5px;
-        padding: 3px 10px; border-radius: 10px; text-transform: uppercase;
-    }
-    .nudge-product { font-size: 19px; font-weight: 800; color: #1A1A2E; margin: 9px 0 2px; }
-    .nudge-cat { font-size: 12px; color: #0C831F; font-weight: 700; margin-bottom: 8px; }
-    .nudge-reason { font-size: 13.5px; color: #333; line-height: 1.5; }
-    .social-proof {
-        background: #FFF9E8; border: 1px solid #FFE7A0; border-radius: 12px;
-        padding: 9px 12px; margin-top: 10px; font-size: 12.5px; color: #6B5A1E;
-        animation: slideUp 0.7s ease-out;
-    }
-    .price-line {
-        display: flex; justify-content: space-between; align-items: center;
-        margin-top: 12px; animation: slideUp 0.85s ease-out;
-    }
-    .price-tag { font-size: 17px; font-weight: 800; color: #1A1A2E; }
-    .add-btn {
-        background: #0C831F; color: #fff; font-weight: 700; font-size: 13px;
-        padding: 8px 20px; border-radius: 10px;
-    }
-    .method-note {
-        font-size: 11px; color: #999; margin-top: 12px; line-height: 1.45;
-        animation: slideUp 1.0s ease-out;
-    }
-
-    /* streamlit widget skinning inside phone */
-    .stTextArea textarea {
-        border-radius: 14px !important; border: 1.5px solid #E0E0E0 !important;
-        font-size: 14px !important; background: #FAFAFA !important;
-    }
-    .stTextArea textarea:focus { border-color: #0C831F !important; box-shadow: none !important; }
-    .stButton > button {
-        background: #0C831F !important; color: #fff !important;
-        border: none !important; border-radius: 14px !important;
-        font-weight: 800 !important; font-size: 15px !important;
-        padding: 0.6rem 1rem !important; width: 100%;
-        transition: transform 0.12s ease, filter 0.12s ease;
-    }
-    .stButton > button:hover { filter: brightness(1.08); transform: translateY(-1px); }
-    .footer-note {
-        text-align: center; font-size: 11.5px; color: #9A8A78; margin-top: 16px;
-        font-family: 'Segoe UI', system-ui, sans-serif; animation: fadeDown 0.8s ease-out;
-    }
-</style>
-"""
-
-st.markdown(PHONE_CSS, unsafe_allow_html=True)
-
-# ---------------------------------------------------------------- AI
-
-SYSTEM_PROMPT = """You are Blinkit's Smart Basket engine. The user gives their typical
-Blinkit basket. Your job: suggest exactly ONE product from a category NOT already in
-their basket that fits their household pattern. Ground the suggestion in what the
-basket reveals (household size, diet, routines). Keep it realistic for Indian quick
-commerce (Blinkit catalog style items, INR pricing).
-
-Respond ONLY with valid JSON, no markdown fences, no preamble:
-{
-  "basket_read": "one sentence on what this basket says about the household",
-  "product": "specific product name with brand and size",
-  "category": "the new category it belongs to",
-  "reason": "2 sentences, second person, why this fits their routine",
-  "social_proof": "one realistic line like 'X% of shoppers in your city who buy <anchor item> also ordered this' with a plausible number between 18 and 42",
-  "price_inr": 149
-}"""
-
-DEMO_RESULT = {
-    "basket_read": "A two-person household running on quick breakfasts and daily chai.",
-    "product": "Epigamia Greek Yogurt, Blueberry, 90 g (pack of 2)",
-    "category": "Fresh Dairy Snacking",
-    "reason": "You already stock milk and bananas every week, so a protein snack slots straight into your breakfast routine. It keeps for days and needs zero prep on rushed mornings.",
-    "social_proof": "31% of shoppers in your city who buy bananas weekly also ordered Greek yogurt this month",
-    "price_inr": 130,
+# ---------------------------------------------------------------------------
+# Preset baskets
+# ---------------------------------------------------------------------------
+PRESETS = {
+    "🥛 Morning Essentials": "Amul Taaza 1L, brown bread, eggs 6-pack, Nescafe Classic 50g, bananas",
+    "🍳 Weekend Brunch": "paneer 200g, butter, pav, onions, tomatoes, green chillies",
+    "👶 Baby & Home": "Huggies diapers M, Cerelac wheat 300g, Dettol handwash, Vim bar, garbage bags",
+    "🥗 Health Kick": "oats 1kg, mixed dry fruits, skimmed milk 500ml, honey, green tea bags",
+    "🍿 Movie Night": "Maggi 4-pack, Coca-Cola 750ml, Lay's classic, Hide & Seek, Amul cheese slice",
 }
 
+# ---------------------------------------------------------------------------
+# CSS: background + phone bezel wrapping all Streamlit content
+# ---------------------------------------------------------------------------
+st.markdown("""
+<style>
+/* ---- Hide Streamlit chrome ---- */
+#MainMenu, footer, header, .stDeployButton {display:none!important;}
 
-def get_suggestion(basket_text: str) -> dict:
-    """Call Claude for a basket-aware nudge. Fall back to demo data on any failure."""
+/* ---- Warm background ---- */
+[data-testid="stAppViewContainer"] {
+    background: linear-gradient(160deg, #FDEBD0 0%, #F5CBA7 40%, #FAD7A0 100%);
+}
+
+/* ---- Phone bezel = the block-container itself ---- */
+.block-container {
+    max-width: 390px !important;
+    background: #FFFFFF;
+    border-radius: 48px;
+    border: 12px solid #111;
+    box-shadow:
+        0 30px 70px rgba(0,0,0,0.22),
+        inset 0 0 0 2px #333,
+        0 0 0 1px #000;
+    padding: 4px 22px 16px !important;
+    margin-top: 24px !important;
+    margin-bottom: 40px !important;
+    position: relative;
+    min-height: 740px;
+    overflow: hidden;
+}
+
+/* ---- Streamlit widget overrides to match iOS look ---- */
+/* Text area */
+[data-testid="stTextArea"] textarea {
+    border: 1.5px solid #E0E0E0 !important;
+    border-radius: 12px !important;
+    font-size: 13.5px !important;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif !important;
+    background: #FAFAFA !important;
+    color: #333 !important;
+    padding: 12px 14px !important;
+    resize: none !important;
+}
+[data-testid="stTextArea"] textarea:focus {
+    border-color: #0C831F !important;
+    background: #fff !important;
+    box-shadow: none !important;
+}
+[data-testid="stTextArea"] label { display: none !important; }
+[data-testid="stTextArea"] .stTextArea > div { padding: 0 !important; }
+
+/* Primary button (Analyze) */
+[data-testid="stButton"] button[kind="primary"],
+.stButton button[kind="primaryFormSubmit"],
+button[data-testid="stBaseButton-primary"] {
+    background: #0C831F !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 12px !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif !important;
+    padding: 12px 0 !important;
+    letter-spacing: 0.2px;
+    box-shadow: none !important;
+}
+button[data-testid="stBaseButton-primary"]:hover {
+    background: #0a6e1a !important;
+    border: none !important;
+}
+button[data-testid="stBaseButton-primary"]:disabled {
+    background: #ccc !important;
+    color: #999 !important;
+}
+
+/* Secondary/small buttons (presets + reset) */
+button[data-testid="stBaseButton-secondary"] {
+    background: #F5F5F5 !important;
+    border: 1.5px solid #E0E0E0 !important;
+    border-radius: 20px !important;
+    font-size: 11px !important;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif !important;
+    color: #444 !important;
+    padding: 6px 6px !important;
+    box-shadow: none !important;
+    white-space: nowrap;
+}
+button[data-testid="stBaseButton-secondary"]:hover {
+    background: #FFF8E1 !important;
+    border-color: #FFC727 !important;
+    color: #1A1A2E !important;
+}
+
+/* Reduce gaps */
+[data-testid="stVerticalBlock"] > div { gap: 0.4rem !important; }
+[data-testid="stHorizontalBlock"] { gap: 0.35rem !important; }
+
+/* Column padding reduction */
+[data-testid="stColumn"] { padding: 0 2px !important; }
+
+/* ---- Custom HTML elements ---- */
+.dynamic-island {
+    width: 120px; height: 34px;
+    background: #111; border-radius: 20px;
+    margin: 6px auto 0;
+}
+.status-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 12px 2px;
+    font: 600 14px -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #1a1a1a;
+}
+.status-icons { display:flex; gap:5px; align-items:center; font-size:13px; }
+
+.smart-banner {
+    background: #FFC727; border-radius: 14px;
+    padding: 14px 16px; margin: 6px 0 10px;
+}
+.smart-banner .dtag {
+    font: 700 10px/1 -apple-system, sans-serif;
+    letter-spacing: 0.8px; color: #1A1A2E; text-transform: uppercase;
+}
+.smart-banner h2 {
+    margin: 3px 0 1px; font: 800 20px -apple-system, sans-serif; color: #1A1A2E;
+}
+.smart-banner .sub { font-size: 12.5px; color: #333; }
+
+.sec-label {
+    font: 700 11px/1 -apple-system, sans-serif;
+    letter-spacing: 1px; color: #999; text-transform: uppercase;
+    margin: 8px 0 4px;
+}
+.hint-label {
+    font-size: 10px; color: #bbb; margin-bottom: 6px;
+    font-family: -apple-system, sans-serif;
+}
+
+/* ---- Result cards ---- */
+.basket-chips { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+.bchip {
+    background:#F0F0F0; border-radius:16px; padding:5px 12px;
+    font:500 11.5px -apple-system, sans-serif; color:#555;
+}
+.sug-title {
+    font: 700 15px -apple-system, sans-serif; color: #1A1A2E; margin: 14px 0 2px;
+}
+.sug-sub { font-size: 12px; color: #888; margin-bottom: 10px; }
+
+.pcard {
+    background: #fff; border: 1.5px solid #EAEAEA; border-radius: 14px;
+    padding: 14px 16px; margin-bottom: 10px;
+    animation: cslide 0.4s ease forwards; opacity: 0;
+}
+.pcard:nth-child(1) { animation-delay: 0.1s; }
+.pcard:nth-child(2) { animation-delay: 0.25s; }
+.pcard:nth-child(3) { animation-delay: 0.4s; }
+@keyframes cslide {
+    from { opacity:0; transform:translateY(14px); }
+    to   { opacity:1; transform:translateY(0); }
+}
+.pcard .pname { font: 700 14px -apple-system, sans-serif; color: #1A1A2E; }
+.pcard .pprice { font: 600 13px -apple-system, sans-serif; color: #0C831F; margin: 2px 0 6px; }
+.pcard .preason { font-size: 12px; color: #666; line-height: 1.45; margin-bottom: 8px; }
+.pcard .psocial {
+    font-size: 11px; color: #888; background: #F8F8F8;
+    padding: 6px 10px; border-radius: 8px; display: inline-block;
+}
+.pcard .addbtn {
+    float: right; background: #0C831F; color: #fff; border: none;
+    border-radius: 8px; padding: 6px 16px; font: 700 12px -apple-system, sans-serif;
+    cursor: pointer; margin-top: -30px;
+}
+
+.mnote {
+    margin: 14px 0 0; padding: 10px 14px; background: #F9F9F9;
+    border-radius: 10px; font: 400 11px/1.5 -apple-system, sans-serif; color: #999;
+}
+
+.home-ind {
+    width: 134px; height: 5px; background: #222;
+    border-radius: 3px; margin: 18px auto 6px;
+}
+
+/* Loading */
+.ld-wrap { text-align:center; padding:44px 0; }
+.ld-spin {
+    width:36px; height:36px; border:3px solid #E0E0E0; border-top-color:#0C831F;
+    border-radius:50%; animation:sp .8s linear infinite; margin:0 auto 14px;
+}
+@keyframes sp { to{transform:rotate(360deg)} }
+.ld-wrap p { font:400 13px -apple-system,sans-serif; color:#888; }
+
+/* ---- Footer outside phone ---- */
+.pgfoot {
+    text-align:center; padding:0 0 28px;
+    font: 400 12px -apple-system, sans-serif; color: #bbb;
+    max-width: 390px; margin: 0 auto;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------------------------
+# Claude API
+# ---------------------------------------------------------------------------
+def get_suggestions(basket_text: str) -> dict:
+    prompt = f"""You are Blinkit's Smart Basket engine. A user's typical basket is:
+{basket_text}
+
+Analyze which product CATEGORIES they already buy from. Then suggest exactly 3 products
+from DIFFERENT categories they are NOT buying from. Each suggestion must:
+- Be a real product available on Blinkit (Indian quick-commerce)
+- Come from a category absent from their basket
+- Include a contextual reason tied to their basket items
+- Include realistic social proof data
+
+Respond ONLY with this JSON (no markdown, no backticks, no extra text):
+{{
+  "basket_categories": ["category1", "category2"],
+  "suggestions": [
+    {{
+      "product_name": "Exact product name with brand and size",
+      "price": "price in rupees like 49, 129, etc",
+      "category": "category this belongs to",
+      "reason": "One line connecting this to their existing basket habits",
+      "social_proof": "Stat like: 73% of similar baskets add this"
+    }},
+    {{
+      "product_name": "...",
+      "price": "...",
+      "category": "...",
+      "reason": "...",
+      "social_proof": "..."
+    }},
+    {{
+      "product_name": "...",
+      "price": "...",
+      "category": "...",
+      "reason": "...",
+      "social_proof": "..."
+    }}
+  ]
+}}"""
     try:
         import anthropic
-
         client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
-        msg = client.messages.create(
+        resp = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=600,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": f"My typical Blinkit basket: {basket_text}"}],
+            max_tokens=800,
+            messages=[{"role": "user", "content": prompt}],
         )
-        raw = msg.content[0].text.strip()
-        raw = re.sub(r"^```(json)?|```$", "", raw, flags=re.MULTILINE).strip()
-        data = json.loads(raw)
-        for key in ("basket_read", "product", "category", "reason", "social_proof", "price_inr"):
-            if key not in data:
-                raise ValueError(f"missing key {key}")
-        return data
+        raw = resp.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1]
+        if raw.endswith("```"):
+            raw = raw.rsplit("```", 1)[0]
+        return json.loads(raw.strip())
     except Exception:
-        return DEMO_RESULT
+        return _fallback(basket_text)
 
 
-# ---------------------------------------------------------------- UI
-
-st.markdown(
-    """
-    <div class="brand-header">
-        <span class="brand-logo">blinkit</span>
-        <div class="brand-tagline">Smart Basket &middot; AI-native discovery nudge &middot; NextLeap graduation MVP</div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-st.markdown(
-    """
-    <div class="iphone-frame"><div class="iphone-screen">
-        <div class="dynamic-island"></div>
-        <div class="status-bar"><span>9:41</span><span>&#9679;&#9679;&#9679;&#9679; &#128267;</span></div>
-        <div class="app-body">
-            <div class="app-topbar">
-                <div class="t1">DELIVERY IN 8 MINUTES</div>
-                <div class="t2">Smart Basket</div>
-                <div class="t3">One new find, matched to how you already shop</div>
-            </div>
-            <div class="section-label">Your usual basket</div>
-        </div>
-    </div></div>
-    """,
-    unsafe_allow_html=True,
-)
-
-basket = st.text_area(
-    "basket",
-    placeholder="e.g. Amul milk 1L, brown bread, bananas, Maggi, Tata Salt, curd 400g",
-    height=90,
-    label_visibility="collapsed",
-)
-
-go = st.button("Analyze my basket \u2192")
-
-if go:
-    items = [i.strip() for i in re.split(r"[,\n]", basket) if i.strip()]
-    if not items:
-        st.markdown(
-            "<div class='footer-note'>Add a few items first, like milk, bread, bananas.</div>",
-            unsafe_allow_html=True,
-        )
+def _fallback(bt: str) -> dict:
+    bl = bt.lower()
+    if any(w in bl for w in ["milk", "bread", "egg", "nescafe", "banana"]):
+        return {
+            "basket_categories": ["Dairy", "Bakery", "Breakfast", "Fruits"],
+            "suggestions": [
+                {"product_name": "Saffola Oats 1kg", "price": "169", "category": "Health Foods",
+                 "reason": "Pairs with your morning milk and banana for a complete breakfast",
+                 "social_proof": "68% of breakfast-basket shoppers add oats within 2 weeks"},
+                {"product_name": "Vim Dishwash Gel 500ml", "price": "99", "category": "Cleaning",
+                 "reason": "Daily cooking means daily dishes; most milk+bread buyers restock cleaning monthly",
+                 "social_proof": "Added by 4 out of 5 similar households this week"},
+                {"product_name": "Yogabar Muesli 400g", "price": "249", "category": "Snacks & Cereals",
+                 "reason": "Goes with the milk you already order; a no-cook breakfast for rushed mornings",
+                 "social_proof": "Trending in your area: 3x orders this month vs last"},
+            ],
+        }
+    elif any(w in bl for w in ["paneer", "butter", "pav", "onion"]):
+        return {
+            "basket_categories": ["Dairy", "Bakery", "Vegetables"],
+            "suggestions": [
+                {"product_name": "MDH Pav Bhaji Masala 100g", "price": "56", "category": "Spices",
+                 "reason": "You have pav, butter, and onions; this completes a classic pav bhaji",
+                 "social_proof": "91% of pav-buyers also order this masala"},
+                {"product_name": "Paper Boat Aamras 200ml (3-pack)", "price": "60", "category": "Beverages",
+                 "reason": "A cold side drink for your weekend brunch spread",
+                 "social_proof": "Weekend beverage orders up 45% in your pincode"},
+                {"product_name": "Amul Lassi Mango 200ml (4-pack)", "price": "80", "category": "Dairy Beverages",
+                 "reason": "Complements a heavy paneer meal; ready-to-drink, no prep",
+                 "social_proof": "Bought together with paneer in 58% of weekend baskets"},
+            ],
+        }
+    elif any(w in bl for w in ["diaper", "huggies", "cerelac", "baby", "dettol"]):
+        return {
+            "basket_categories": ["Baby Care", "Cleaning", "Hygiene"],
+            "suggestions": [
+                {"product_name": "Himalaya Baby Lotion 200ml", "price": "145", "category": "Baby Skin Care",
+                 "reason": "Most diaper buyers also need baby skin care in the same restock cycle",
+                 "social_proof": "72% of Huggies buyers add a baby lotion to their cart"},
+                {"product_name": "Good Knight Gold Flash Refill", "price": "89", "category": "Home Protection",
+                 "reason": "Baby in the house means extra mosquito protection matters",
+                 "social_proof": "Top-selling home care add-on for baby households"},
+                {"product_name": "Real Fruit Power Mixed Fruit 1L", "price": "99", "category": "Beverages",
+                 "reason": "A quick drink for you while managing baby routines",
+                 "social_proof": "Added by 3 in 5 parents during their baby-care restock"},
+            ],
+        }
+    elif any(w in bl for w in ["oats", "dry fruit", "honey", "green tea", "skim"]):
+        return {
+            "basket_categories": ["Health Foods", "Dry Fruits", "Dairy", "Beverages"],
+            "suggestions": [
+                {"product_name": "Peanut Butter Crunchy 400g (MyFitness)", "price": "269", "category": "Spreads",
+                 "reason": "High protein spread that pairs with your oats and health-first basket",
+                 "social_proof": "65% of oats buyers add a protein spread within 3 orders"},
+                {"product_name": "Epigamia Greek Yogurt Strawberry 90g", "price": "45", "category": "Dairy Snacks",
+                 "reason": "Protein-rich snack that fits your health-conscious pattern",
+                 "social_proof": "Trending: health basket shoppers order 2x more yogurt"},
+                {"product_name": "Chia Seeds 200g (True Elements)", "price": "159", "category": "Superfoods",
+                 "reason": "Add to your oats or smoothie; complements your dry fruits",
+                 "social_proof": "Bought together with oats in 48% of health baskets"},
+            ],
+        }
     else:
-        with st.spinner("Reading your basket..."):
-            result = get_suggestion(basket)
+        return {
+            "basket_categories": ["Grocery", "Staples"],
+            "suggestions": [
+                {"product_name": "Tata Sampann Chana Dal 1kg", "price": "135", "category": "Pulses",
+                 "reason": "A pantry staple that pairs with your existing grocery items",
+                 "social_proof": "72% of similar baskets include a dal or lentil"},
+                {"product_name": "Surf Excel Matic Liquid 1L", "price": "225", "category": "Household Care",
+                 "reason": "Most grocery shoppers batch household refills on the same order",
+                 "social_proof": "Saves an extra delivery; added by 3 in 5 weekly shoppers"},
+                {"product_name": "Cadbury Dairy Milk Silk 150g", "price": "160", "category": "Chocolates",
+                 "reason": "A treat to go with your essentials run; top impulse add at checkout",
+                 "social_proof": "Top impulse add in your area this week"},
+            ],
+        }
 
-        chips = "".join(f"<span class='chip'>{i}</span>" for i in items[:10])
-        st.markdown(f"<div class='chip-row'>{chips}</div>", unsafe_allow_html=True)
 
-        st.markdown(
-            f"""
-            <div class="nudge-card">
-                <span class="nudge-eyebrow">Picked for your basket</span>
-                <div class="nudge-product">{result["product"]}</div>
-                <div class="nudge-cat">New for you &middot; {result["category"]}</div>
-                <div class="nudge-reason"><b>{result["basket_read"]}</b><br>{result["reason"]}</div>
-                <div class="social-proof">&#11088; {result["social_proof"]}</div>
-                <div class="price-line">
-                    <span class="price-tag">&#8377;{result["price_inr"]}</span>
-                    <span class="add-btn">ADD</span>
-                </div>
-                <div class="method-note">
-                    Why this exists: analysis of 1,718 real user posts showed only 2.3% mention
-                    discovery at all. Users never attempt it, so the nudge meets them at checkout,
-                    the highest-intent moment, with social proof and a reason grounded in their
-                    own basket.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+# ---------------------------------------------------------------------------
+# Session state
+# ---------------------------------------------------------------------------
+if "basket" not in st.session_state:
+    st.session_state.basket = ""
+if "results" not in st.session_state:
+    st.session_state.results = None
+if "phase" not in st.session_state:
+    st.session_state.phase = "input"  # input | loading | results
 
-st.markdown(
-    "<div class='footer-note'>Built for the NextLeap PM Fellowship &middot; D3 MVP &middot; Powered by Claude</div>",
-    unsafe_allow_html=True,
-)
+
+# ---------------------------------------------------------------------------
+# PHONE CONTENT
+# ---------------------------------------------------------------------------
+
+# Dynamic Island + Status Bar (always shown)
+st.markdown("""
+<div class="dynamic-island"></div>
+<div class="status-bar">
+    <span>9:41</span>
+    <span class="status-icons">
+        <span>●●●●</span>
+        <span style="color:#0C831F;">▐</span>
+    </span>
+</div>
+""", unsafe_allow_html=True)
+
+# ---------- LOADING PHASE ----------
+if st.session_state.phase == "loading":
+    st.markdown("""
+    <div class="smart-banner">
+        <div class="dtag">DELIVERY IN 8 MINUTES</div>
+        <h2>Smart Basket</h2>
+        <div class="sub">Analyzing your basket...</div>
+    </div>
+    <div class="ld-wrap">
+        <div class="ld-spin"></div>
+        <p>Finding products from categories you haven't tried</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    data = get_suggestions(st.session_state.basket)
+    st.session_state.results = data
+    st.session_state.phase = "results"
+    st.rerun()
+
+# ---------- RESULTS PHASE ----------
+elif st.session_state.phase == "results" and st.session_state.results:
+    data = st.session_state.results
+    items = [i.strip() for i in st.session_state.basket.split(",") if i.strip()]
+    chips = "".join(f'<span class="bchip">{it}</span>' for it in items)
+    cats = ", ".join(data.get("basket_categories", []))
+
+    cards = ""
+    for s in data.get("suggestions", []):
+        cards += f"""
+        <div class="pcard">
+            <div class="pname">{s['product_name']}</div>
+            <div class="pprice">₹{s['price']}</div>
+            <span class="addbtn">+ ADD</span>
+            <div class="preason">{s['reason']}</div>
+            <div class="psocial">📊 {s['social_proof']}</div>
+        </div>"""
+
+    st.markdown(f"""
+    <div class="smart-banner">
+        <div class="dtag">DELIVERY IN 8 MINUTES</div>
+        <h2>Smart Basket</h2>
+        <div class="sub">Here's what we found for you</div>
+    </div>
+
+    <div class="sec-label">Your basket</div>
+    <div class="basket-chips">{chips}</div>
+
+    <div class="sug-title">You might also need</div>
+    <div class="sug-sub">Based on your {cats} basket · Pick any to add</div>
+
+    {cards}
+
+    <div class="mnote">
+        Built on Blinkit review analysis (1,718 reviews, 10 themes). Discovery friction
+        is just 2.3% of complaints because users never attempt it. Smart Basket meets them
+        at checkout, the highest-intent moment, with contextual cross-category nudges.
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Reset button
+    if st.button("← Try another basket", use_container_width=True):
+        st.session_state.basket = ""
+        st.session_state.results = None
+        st.session_state.phase = "input"
+        st.rerun()
+
+# ---------- INPUT PHASE ----------
+else:
+    st.markdown("""
+    <div class="smart-banner">
+        <div class="dtag">DELIVERY IN 8 MINUTES</div>
+        <h2>Smart Basket</h2>
+        <div class="sub">One new find, matched to how you already shop</div>
+    </div>
+    <div class="sec-label">Your usual basket</div>
+    <div class="hint-label">Tap a preset or type your own</div>
+    """, unsafe_allow_html=True)
+
+    # Preset chips as Streamlit buttons (2 rows)
+    labels = list(PRESETS.keys())
+    row1 = st.columns(3)
+    for i, col in enumerate(row1):
+        if i < len(labels):
+            with col:
+                if st.button(labels[i], key=f"p{i}", use_container_width=True):
+                    st.session_state.basket = PRESETS[labels[i]]
+                    st.rerun()
+    row2 = st.columns(3)
+    for i, col in enumerate(row2):
+        idx = i + 3
+        if idx < len(labels):
+            with col:
+                if st.button(labels[idx], key=f"p{idx}", use_container_width=True):
+                    st.session_state.basket = PRESETS[labels[idx]]
+                    st.rerun()
+
+    # Text area
+    typed = st.text_area(
+        "basket",
+        value=st.session_state.basket,
+        placeholder="e.g. Amul milk 1L, brown bread, bananas, Maggi, Tata Salt, curd 400g",
+        height=72,
+        key="ta",
+        label_visibility="collapsed",
+    )
+    if typed != st.session_state.basket:
+        st.session_state.basket = typed
+
+    # Analyze button
+    if st.button(
+        "Analyze my basket →",
+        type="primary",
+        use_container_width=True,
+        disabled=not st.session_state.basket.strip(),
+    ):
+        st.session_state.phase = "loading"
+        st.rerun()
+
+
+# Home indicator
+st.markdown('<div class="home-ind"></div>', unsafe_allow_html=True)
+
+# Footer (outside phone via negative margin trick)
+st.markdown("""
+<div class="pgfoot" style="margin-top:30px;">
+    Built for the NextLeap PM Fellowship · D3 MVP · Powered by Claude
+</div>
+""", unsafe_allow_html=True)
