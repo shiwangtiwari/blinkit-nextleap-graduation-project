@@ -150,11 +150,12 @@ btn_label    = "Basket Analyzed" if analyzed else "Analyze My Basket"
 btn_disabled = "true" if analyzed else "false"
 animate      = "true" if analyzed else "false"
 
-# Serialize to JS
-items_js   = json.dumps(basket["items"])
-qtys_js    = json.dumps(qtys)
-recs_js    = json.dumps(recs_data)
-delivery   = json.dumps(basket["delivery"])
+# Serialize to JS — ensure_ascii=False keeps emojis as literal UTF-8
+# (surrogate-pair escapes like \ud83e break JS JSON.parse silently)
+items_js   = json.dumps(basket["items"],  ensure_ascii=False)
+qtys_js    = json.dumps(qtys,             ensure_ascii=False)
+recs_js    = json.dumps(recs_data,        ensure_ascii=False)
+delivery   = json.dumps(basket["delivery"], ensure_ascii=False)
 
 # ── Build complete self-contained HTML for the iframe ─────────────────────────
 PAGE = (
