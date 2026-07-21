@@ -10,42 +10,19 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# Hide ALL Streamlit chrome + outer container
+# Hide ALL Streamlit chrome
 st.markdown("""
 <style>
-html,body{background:#E8E8E8!important;margin:0;padding:0;}
-.stApp{background:#E8E8E8!important;}
+html,body,.stApp{background:#E8E8E8!important;}
 section[data-testid="stSidebar"]{display:none!important;}
 header[data-testid="stHeader"]{display:none!important;}
 [data-testid="stToolbar"],[data-testid="stDecoration"],[data-testid="stStatusWidget"]{display:none!important;}
-[data-testid="stMainBlockContainer"],.block-container{
-  padding:0!important;
-  max-width:100%!important;
-  background:transparent!important;
-}
+[data-testid="stMainBlockContainer"],.block-container{padding:0!important;max-width:100%!important;background:transparent!important;}
 footer{display:none!important;}
-
-/* Kill the iframe wrapper white box */
-iframe{
-  border:none!important;
-  display:block!important;
-}
-[data-testid="stIFrame"]{
-  background:transparent!important;
-  border:none!important;
-}
-.element-container{
-  background:transparent!important;
-  border:none!important;
-  box-shadow:none!important;
-  padding:0!important;
-  margin:0!important;
-}
-/* Remove any stVerticalBlock padding/margin */
-[data-testid="stVerticalBlock"]{
-  gap:0!important;
-  padding:0!important;
-}
+/* Remove white container around iframe */
+.element-container,.stHtml{background:transparent!important;border:none!important;box-shadow:none!important;padding:0!important;margin:0!important;}
+[data-testid="stVerticalBlock"]{gap:0!important;padding:0!important;}
+iframe{border:none!important;display:block!important;background:transparent!important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -125,8 +102,8 @@ if "analyzed" not in st.session_state:
 if "ai_recs" not in st.session_state:
     st.session_state.ai_recs = None
 
-basket  = st.session_state.basket
-qtys    = st.session_state.qtys
+basket   = st.session_state.basket
+qtys     = st.session_state.qtys
 analyzed = st.session_state.analyzed and bool(st.session_state.ai_recs)
 
 # ── Check query param trigger (set by JS inside iframe) ───────────────────────
@@ -137,36 +114,50 @@ if st.query_params.get("analyze") == "1" and not st.session_state.analyzed:
         st.session_state.ai_recs = recs
         st.session_state.analyzed = True
     except Exception as e:
-        st.session_state.analyzed = False
+        st.error(f"Analysis failed: {e}")
     st.query_params.clear()
     st.rerun()
 
 # ── Build data for the iframe ──────────────────────────────────────────────────
-recs_data    = st.session_state.ai_recs if analyzed else DEFAULT_RECS
-recs_title   = "Smart Basket Picks" if analyzed else "You might also like"
-ai_badge     = "visible" if analyzed else ""
-btn_class    = "done" if analyzed else ""
-btn_label    = "Basket Analyzed" if analyzed else "Analyze My Basket"
-btn_disabled = "true" if analyzed else "false"
-animate      = "true" if analyzed else "false"
+recs_data  = st.session_state.ai_recs if analyzed else DEFAULT_RECS
+recs_title = "Smart Basket Picks" if analyzed else "You might also like"
+ai_badge   = "visible" if analyzed else ""
+btn_class  = "done" if analyzed else ""
+animate    = "true" if analyzed else "false"
 
-# Serialize to JS — ensure_ascii=False keeps emojis as literal UTF-8
-# (surrogate-pair escapes like \ud83e break JS JSON.parse silently)
-items_js   = json.dumps(basket["items"],  ensure_ascii=False)
-qtys_js    = json.dumps(qtys,             ensure_ascii=False)
-recs_js    = json.dumps(recs_data,        ensure_ascii=False)
-delivery   = json.dumps(basket["delivery"], ensure_ascii=False)
+# Serialize — ensure_ascii=False so emojis stay as UTF-8 (not broken \uXXXX surrogates)
+items_js  = json.dumps(basket["items"],    ensure_ascii=False)
+qtys_js   = json.dumps(qtys,              ensure_ascii=False)
+recs_js   = json.dumps(recs_data,         ensure_ascii=False)
+delivery  = json.dumps(basket["delivery"], ensure_ascii=False)
 
-# ── Build complete self-contained HTML for the iframe ─────────────────────────
-PAGE = (
-"""<!DOCTYPE html>
+# ── Render ────────────────────────────────────────────────────────────────────
+# Use st.html (not st.components.v1.html) to avoid the iframe wrapper entirely.
+# All data is injected via a <script id="__data__"> tag so no Python string
+# concat touches the JSON — the JS reads it from the DOM after parse.
+DATA_BLOB = json.dumps({
+    "items":    basket["items"],
+    "qtys":     qtys,
+    "recs":     recs_data,
+    "delivery": basket["delivery"],
+    "analyzed": analyzed,
+    "recsTitle":recs_title,
+    "aiBadge":  ai_badge,
+    "btnClass": btn_class,
+    "animate":  animate,
+    "btnLabel": "Basket Analyzed" if analyzed else "Analyze My Basket",
+    "btnDone":  analyzed,
+}, ensure_ascii=False)
+
+
+PAGE = """<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-html,body{background:#E8E8E8;min-height:100%;display:flex;justify-content:center;align-items:flex-start;padding:24px 0 40px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;}
+body{background:#E8E8E8;display:flex;justify-content:center;padding:24px 0 40px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;}
 .phone{width:390px;background:#1C1C1E;border-radius:55px;border:2px solid #3A3A3C;position:relative;overflow:hidden;box-shadow:0 0 0 1px #555,0 40px 90px rgba(0,0,0,0.55);}
 .phone::before{content:'';position:absolute;left:-5px;top:108px;width:4px;height:32px;background:#3A3A3C;border-radius:3px 0 0 3px;box-shadow:0 50px 0 #3A3A3C,0 94px 0 #3A3A3C;z-index:20;}
 .phone::after{content:'';position:absolute;right:-5px;top:162px;width:4px;height:74px;background:#3A3A3C;border-radius:0 3px 3px 0;z-index:20;}
@@ -283,6 +274,7 @@ html,body{background:#E8E8E8;min-height:100%;display:flex;justify-content:center
 </style>
 </head>
 <body>
+<script id="__data__" type="application/json">__DATA_BLOB__</script>
 <div class="phone">
  <div class="screen">
   <div class="status">
@@ -310,14 +302,12 @@ html,body{background:#E8E8E8;min-height:100%;display:flex;justify-content:center
    <div class="sb">
     <div class="sb-h"><div class="sb-icon">&#10022;</div><span class="sb-title">Smart Basket</span><span class="sb-badge">AI</span></div>
     <div class="sb-sub">Discover one new product that matches how you already shop.</div>
-    <button class="abtn """ + btn_class + """" id="aBtn" """ + ("disabled" if analyzed else "") + """ onclick="doAnalyze()">
-     """ + ("&#10003;&nbsp;Basket Analyzed" if analyzed else "&#10022; Analyze My Basket") + """
-    </button>
+    <button class="abtn" id="aBtn" onclick="doAnalyze()">&#10022; Analyze My Basket</button>
    </div>
    <div class="recs">
     <div class="recs-h">
-     <span class="recs-title" id="recsTitle">""" + recs_title + """</span>
-     <span class="recs-ai """ + ai_badge + """">AI Powered</span>
+     <span class="recs-title" id="recsTitle">You might also like</span>
+     <span class="recs-ai" id="aiBadge">AI Powered</span>
     </div>
     <div class="recs-scroll" id="recsScroll"></div>
    </div>
@@ -350,79 +340,132 @@ html,body{background:#E8E8E8;min-height:100%;display:flex;justify-content:center
  </div>
 </div>
 <script>
-var ITEMS=""" + items_js + """;
-var QTYS=""" + qtys_js + """;
-var RECS=""" + recs_js + """;
-var DELIVERY=""" + delivery + """;
-var ANIMATE=""" + animate + """;
-var tipAmt=0,added={};
-function stars(r){var f=Math.floor(r),h=r-f>=0.3?'&frac12;':'',e=5-f-(h?1:0);return'&#9733;'.repeat(f)+h+'&#9734;'.repeat(e);}
+// Read data from the DOM tag — zero risk of JSON/string-concat corruption
+var D = JSON.parse(document.getElementById('__data__').textContent);
+var ITEMS    = D.items;
+var QTYS     = D.qtys;
+var RECS     = D.recs;
+var DELIVERY = D.delivery;
+var ANIMATE  = D.analyzed;
+
+// Apply button/badge state from server
+if (D.btnDone) {
+  var b = document.getElementById('aBtn');
+  b.className = 'abtn done';
+  b.disabled = true;
+  b.innerHTML = '&#10003;&nbsp;Basket Analyzed';
+}
+document.getElementById('recsTitle').textContent = D.recsTitle;
+if (D.aiBadge) document.getElementById('aiBadge').classList.add('visible');
+
+var tipAmt = 0, added = {};
+
+function stars(r){
+  var f=Math.floor(r), s='';
+  for(var i=0;i<f;i++) s+='&#9733;';
+  if(r-f>=0.3) s+='&frac12;';
+  var e=5-f-(r-f>=0.3?1:0);
+  for(var i=0;i<e;i++) s+='&#9734;';
+  return s;
+}
+
 function renderCart(){
-  document.getElementById('delTime').textContent=DELIVERY;
-  var vis=ITEMS.filter(function(i){return(QTYS[i.name]||0)>0;});
-  document.getElementById('itemCount').textContent='Shipment of '+vis.length+' item'+(vis.length!==1?'s':'');
-  document.getElementById('cartItems').innerHTML=vis.map(function(it){
-    var q=QTYS[it.name];
+  document.getElementById('delTime').textContent = DELIVERY;
+  var vis = ITEMS.filter(function(i){ return (QTYS[i.name]||0) > 0; });
+  document.getElementById('itemCount').textContent = 'Shipment of '+vis.length+' item'+(vis.length!==1?'s':'');
+  document.getElementById('cartItems').innerHTML = vis.map(function(it){
+    var q = QTYS[it.name];
     return '<div class="ci">'+
       '<div class="ci-img">'+it.emoji+'</div>'+
-      '<div class="ci-info"><div class="ci-name">'+it.name+'</div><div class="ci-wt">'+it.weight+'</div><button class="ci-wish">Move to wishlist</button></div>'+
+      '<div class="ci-info">'+
+        '<div class="ci-name">'+it.name+'</div>'+
+        '<div class="ci-wt">'+it.weight+'</div>'+
+        '<button class="ci-wish">Move to wishlist</button>'+
+      '</div>'+
       '<div class="ci-right">'+
         '<div class="qty">'+
-          '<button class="qty-btn" onclick="chgQ(\''+it.name+'\',-1)">&#8722;</button>'+
-          '<span class="qty-n">'+q+'</span>'+
-          '<button class="qty-btn" onclick="chgQ(\''+it.name+'\',1)">+</button>'+
+          '<button class="qty-btn" onclick="chgQ(this,\''+it.name+'\',-1)">&#8722;</button>'+
+          '<span class="qty-n" id="qn_'+it.name.replace(/[^a-z0-9]/gi,\'_\')+'">'+q+'</span>'+
+          '<button class="qty-btn" onclick="chgQ(this,\''+it.name+'\',1)">+</button>'+
         '</div>'+
-        '<div class="ci-price">&#8377;'+(it.price*q)+'</div>'+
+        '<div class="ci-price" id="pr_'+it.name.replace(/[^a-z0-9]/gi,\'_\')+'">&#8377;'+(it.price*q)+'</div>'+
       '</div>'+
     '</div>';
   }).join('');
   updateBill();
 }
-function chgQ(n,d){QTYS[n]=Math.max(0,(QTYS[n]||0)+d);renderCart();}
+
+function chgQ(btn, n, d){
+  QTYS[n] = Math.max(0, (QTYS[n]||0) + d);
+  renderCart();
+}
+
 function updateBill(){
-  var tot=ITEMS.reduce(function(s,i){return s+(i.price*(QTYS[i.name]||0));},0);
-  var del=tot>=199?16:30;
-  document.getElementById('bItems').textContent='&#8377;'+tot;
-  document.getElementById('bDel').textContent='&#8377;'+del;
-  document.getElementById('bGrand').textContent='&#8377;'+(tot+2+del+tipAmt);
-  document.getElementById('delNote').style.display=tot>=199?'none':'block';
-  var tr=document.getElementById('tipRow');
-  if(tipAmt>0){tr.style.display='flex';document.getElementById('bTip').textContent='&#8377;'+tipAmt;}
+  var tot = ITEMS.reduce(function(s,i){ return s+(i.price*(QTYS[i.name]||0)); }, 0);
+  var del = tot >= 199 ? 16 : 30;
+  document.getElementById('bItems').textContent = '&#8377;'+tot;
+  document.getElementById('bDel').textContent   = '&#8377;'+del;
+  document.getElementById('bGrand').textContent = '&#8377;'+(tot+2+del+tipAmt);
+  document.getElementById('delNote').style.display = tot >= 199 ? 'none' : 'block';
+  var tr = document.getElementById('tipRow');
+  if(tipAmt > 0){ tr.style.display='flex'; document.getElementById('bTip').textContent='&#8377;'+tipAmt; }
   else tr.style.display='none';
 }
-function doTip(b,a){document.querySelectorAll('.tip-btn').forEach(function(x){x.classList.remove('sel');});b.classList.add('sel');tipAmt=a;updateBill();}
-function renderRecs(recs,anim){
-  document.getElementById('recsScroll').innerHTML=recs.map(function(p){
-    return '<div class="rc'+(anim?' entering':'')+'">'+
-      '<div class="rc-img">'+p.emoji+'<span class="rc-heart">&#9825;</span>'+
-        '<button class="rc-add'+(added[p.price]?' added':'')+'" onclick="addRec(this,'+p.price+')">'+(added[p.price]?'ADDED &#10003;':'ADD')+'</button>'+
+
+function doTip(b, a){
+  document.querySelectorAll('.tip-btn').forEach(function(x){ x.classList.remove('sel'); });
+  b.classList.add('sel');
+  tipAmt = a;
+  updateBill();
+}
+
+function renderRecs(recs, anim){
+  document.getElementById('recsScroll').innerHTML = recs.map(function(p){
+    var key = 'rec_'+p.price+'_'+Math.random().toString(36).slice(2,6);
+    return '<div class="rc'+(anim?' entering':'')+'" id="'+key+'">'+
+      '<div class="rc-img">'+p.emoji+
+        '<span class="rc-heart">&#9825;</span>'+
+        '<button class="rc-add" onclick="addRec(this,\''+key+'\')">ADD</button>'+
       '</div>'+
       '<div class="rc-body">'+
         '<div class="rc-meta">'+p.weight+' &middot; <span>'+p.category+'</span></div>'+
         '<div class="rc-name">'+p.name+'</div>'+
-        (p.social_proof?'<div class="rc-sp">&#128101; '+p.social_proof+'</div>':'')+
-        (p.reason?'<div class="rc-reason">'+p.reason+'</div>':'')+
+        (p.social_proof ? '<div class="rc-sp">&#128101; '+p.social_proof+'</div>' : '')+
+        (p.reason       ? '<div class="rc-reason">'+p.reason+'</div>' : '')+
         '<div><span class="rc-stars">'+stars(p.rating)+'</span> <span class="rc-reviews">('+p.reviews+')</span></div>'+
         '<div class="rc-price">&#8377;'+p.price+'</div>'+
         '<button class="rc-more">See more like this &#9658;</button>'+
-      '</div></div>';
+      '</div>'+
+    '</div>';
   }).join('');
-  if(anim){requestAnimationFrame(function(){document.querySelectorAll('.rc.entering').forEach(function(c,i){setTimeout(function(){c.style.transition='opacity .4s ease,transform .4s ease';c.classList.remove('entering');},i*90);});});}
+  if(anim){
+    requestAnimationFrame(function(){
+      document.querySelectorAll('.rc.entering').forEach(function(c,i){
+        setTimeout(function(){ c.classList.remove('entering'); }, i*90);
+      });
+    });
+  }
 }
-function addRec(b,p){added[p]=true;b.textContent='ADDED \u2713';b.classList.add('added');}
+
+function addRec(b){ b.textContent='ADDED \u2713'; b.classList.add('added'); }
+
 function doAnalyze(){
-  var b=document.getElementById('aBtn');
-  b.className='abtn';b.style.background='#E8F5E9';b.style.color='#0C831F';
-  b.innerHTML='<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><span>Analyzing\u2026</span>';
-  b.disabled=true;
-  // Navigate the TOP window to trigger Streamlit rerun with ?analyze=1
-  window.top.location.href=window.top.location.pathname+'?analyze=1';
+  var b = document.getElementById('aBtn');
+  b.className = 'abtn';
+  b.style.background = '#E8F5E9';
+  b.style.color = '#0C831F';
+  b.innerHTML = '<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div><span>Analyzing\u2026</span>';
+  b.disabled = true;
+  window.top.location.href = window.top.location.pathname + '?analyze=1';
 }
+
 renderCart();
-renderRecs(RECS,ANIMATE);
+renderRecs(RECS, ANIMATE);
 </script>
 </body>
 </html>"""
-)
+
+# Inject data blob into the HTML — single replacement, no JSON inside Python f-string
+PAGE = PAGE.replace("__DATA_BLOB__", DATA_BLOB)
 
 st.components.v1.html(PAGE, height=940, scrolling=False)
